@@ -1,0 +1,1 @@
+"# MapReduce - Go implementation" 
