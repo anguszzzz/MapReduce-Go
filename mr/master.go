@@ -1,6 +1,10 @@
 package mr
 
-import "log"
+import (
+	"fmt"
+	"log"
+	"sync"
+)
 import "net"
 import "os"
 import "net/rpc"
@@ -8,7 +12,8 @@ import "net/http"
 
 type Master struct {
 	// Your definitions here.
-
+	workerId int
+	mx       sync.Mutex
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -20,6 +25,15 @@ type Master struct {
 //
 func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
 	reply.Y = args.X + 1
+	return nil
+}
+
+func (m *Master) RegWorker(args *RegisterArgs, reply *RegisterReply) error {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	m.workerId += 1
+	reply.WorkerId = m.workerId
+	fmt.Println("RPC is passing")
 	return nil
 }
 
@@ -45,6 +59,7 @@ func (m *Master) server() {
 //
 func (m *Master) Done() bool {
 	ret := false
+	//ret := true
 
 	// Your code here.
 

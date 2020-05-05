@@ -23,6 +23,12 @@ func ihash(key string) int {
 	return int(h.Sum32() & 0x7fffffff)
 }
 
+type worker struct {
+	id      int
+	mapf    func(string, string) []KeyValue
+	reducef func(string, []string) string
+}
+
 //
 // main/mrworker.go calls this function.
 //
@@ -30,10 +36,27 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
+	wk := worker{}
+	wk.mapf = mapf
+	wk.reducef = reducef
+	wk.Register()
+	//wk.Start()
 
 	// uncomment to send the Example RPC to the master.
-	// CallExample()
+	//CallExample()
+}
 
+func (wk *worker) Register() {
+	regArgs := RegisterArgs{}
+	regReply := RegisterReply{}
+	ok := call("Master.RegWorker", &regArgs, &regReply)
+
+	if !ok {
+		log.Fatal("Registeration Failed")
+	}
+
+	wk.id = regReply.WorkerId
+	fmt.Println("Registeration Success, id is", wk.id)
 }
 
 //
@@ -67,6 +90,7 @@ func CallExample() {
 func call(rpcname string, args interface{}, reply interface{}) bool {
 	// c, err := rpc.DialHTTP("tcp", "127.0.0.1"+":1234")
 	sockname := masterSock()
+	fmt.Println(sockname)
 	c, err := rpc.DialHTTP("unix", sockname)
 	if err != nil {
 		log.Fatal("dialing:", err)
