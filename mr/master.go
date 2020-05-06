@@ -14,6 +14,7 @@ type Master struct {
 	// Your definitions here.
 	workerId int
 	mx       sync.Mutex
+	taskChan chan Task
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -35,6 +36,22 @@ func (m *Master) RegWorker(args *RegisterArgs, reply *RegisterReply) error {
 	reply.WorkerId = m.workerId
 	fmt.Println("RPC is passing")
 	return nil
+}
+
+func (m *Master) AssignTask(args *TaskArgs, reply *TaskReply) error {
+	task := <-m.taskChan
+	reply.T = task
+
+	fmt.Println("Master begin to assign task")
+	if task.Alive {
+		m.regTask(args, &task)
+	}
+
+	return nil
+}
+
+func (m *Master) regTask(args *TaskArgs, task *Task) {
+
 }
 
 //
@@ -75,6 +92,18 @@ func MakeMaster(files []string, nReduce int) *Master {
 	m := Master{}
 
 	// Your code here.
+
+	m.mx = sync.Mutex{}
+
+	if nReduce > len(files) {
+		m.taskChan = make(chan Task, nReduce)
+	} else {
+		m.taskChan = make(chan Task, len(files))
+	}
+
+	// For test only
+	task := Task{}
+	m.taskChan <- task
 
 	m.server()
 	return &m

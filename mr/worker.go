@@ -39,14 +39,14 @@ func Worker(mapf func(string, string) []KeyValue,
 	wk := worker{}
 	wk.mapf = mapf
 	wk.reducef = reducef
-	wk.Register()
-	//wk.Start()
+	wk.register()
+	wk.start()
 
 	// uncomment to send the Example RPC to the master.
 	//CallExample()
 }
 
-func (wk *worker) Register() {
+func (wk *worker) register() {
 	regArgs := RegisterArgs{}
 	regReply := RegisterReply{}
 	ok := call("Master.RegWorker", &regArgs, &regReply)
@@ -57,6 +57,36 @@ func (wk *worker) Register() {
 
 	wk.id = regReply.WorkerId
 	fmt.Println("Registeration Success, id is", wk.id)
+}
+
+func (wk *worker) start() {
+	for {
+		t := wk.taskReq()
+		if !t.Alive {
+			fmt.Println("The task is not alive")
+			return
+		}
+		wk.taskDo(t)
+	}
+
+}
+
+func (wk *worker) taskReq() Task {
+	taskArgs := TaskArgs{}
+	taskArgs.WorkerId = wk.id
+	taskReply := TaskReply{}
+
+	ok := call("Master.AssignTask", &taskArgs, &taskReply)
+	if !ok {
+		log.Fatal("Request Task failed")
+	}
+	fmt.Println("Complete task request")
+
+	return taskReply.T
+}
+
+func (wk *worker) taskDo(t Task) {
+	fmt.Println("Debug purpose")
 }
 
 //

@@ -29,6 +29,30 @@ type RegisterReply struct {
 	WorkerId int
 }
 
+type TaskArgs struct {
+	WorkerId int
+}
+
+type TaskReply struct {
+	T Task
+}
+
+type TaskPhase int
+
+type Task struct {
+	Filename  string
+	NumReduce int
+	NumMap    int
+	Id        int
+	Phase     TaskPhase
+	Alive     bool
+}
+
+const (
+	MapPhase    TaskPhase = 0
+	ReducePhase TaskPhase = 1
+)
+
 // Add your RPC definitions here.
 
 // Cook up a unique-ish UNIX-domain socket name
