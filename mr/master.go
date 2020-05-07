@@ -4,17 +4,48 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 import "net"
 import "os"
 import "net/rpc"
 import "net/http"
 
+const (
+	TaskStatusReady   = 0
+	TaskStatusQueue   = 1
+	TaskStatusRunning = 2
+	TaskStatusFinish  = 3
+	TaskStatusErr     = 4
+)
+
+const (
+	MaxTaskRunTime   = time.Second * 5
+	ScheduleInterval = time.Millisecond * 500
+)
+
+// Task status to record tasks' status, it will show the worker who worked on this task
+// the runing, ready, complete, waiting status and also the start time for controlling
+// the life cycle
+
+type TaskStatus struct {
+	Status    int
+	WorkerId  int
+	StartTime time.Time
+}
+
+// should have mutex lock for handling race condition, task channal to assign tasks and
+// record workerid, taskphases and also files names and done or not.
 type Master struct {
 	// Your definitions here.
-	workerId int
-	mx       sync.Mutex
-	taskChan chan Task
+	workerId  int
+	mx        sync.Mutex
+	taskChan  chan Task
+	taskPhase TaskPhase
+	taskStats []TaskStatus
+	files     []string
+	nReduce   int
+	done      bool
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -29,6 +60,7 @@ func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
 	return nil
 }
 
+// Register a worker and assign unique workerid to it
 func (m *Master) RegWorker(args *RegisterArgs, reply *RegisterReply) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -38,6 +70,7 @@ func (m *Master) RegWorker(args *RegisterArgs, reply *RegisterReply) error {
 	return nil
 }
 
+// Assign a task to the requesting worker
 func (m *Master) AssignTask(args *TaskArgs, reply *TaskReply) error {
 	task := <-m.taskChan
 	reply.T = task
@@ -50,7 +83,82 @@ func (m *Master) AssignTask(args *TaskArgs, reply *TaskReply) error {
 	return nil
 }
 
+// Register a task before assign it to the worker, called by the assigntask func
 func (m *Master) regTask(args *TaskArgs, task *Task) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+
+	if m.taskPhase != task.Phase {
+		panic("Request task phase failed")
+	}
+
+	m.taskStats[task.Id].Status = TaskStatusRunning
+	m.taskStats[task.Id].WorkerId = args.WorkerId
+	m.taskStats[task.Id].StartTime = time.Now()
+}
+
+// Do mapper tasks first
+func (m *Master) initMapTask() {
+	m.taskPhase = MapPhase
+	m.taskStats = make([]TaskStatus, len(m.files))
+}
+
+// Timer to control the assign task interval
+func (m *Master) tickTimer() {
+	for !m.Done() {
+		go m.schedule()
+		time.Sleep(ScheduleInterval)
+	}
+}
+
+// Create the tasks and make schedule
+func (m *Master) schedule() {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+
+	if m.done {
+		return
+	}
+
+	finished := true
+	for index, t := range m.taskStats {
+		switch t.Status {
+		case TaskStatusReady:
+			finished = false
+			m.taskChan <- m.getTask(index)
+			m.taskStats[index].Status = TaskStatusQueue
+		case TaskStatusQueue:
+			finished = false
+		case TaskStatusRunning:
+			finished = false
+			if time.Now().Sub(t.StartTime) > MaxTaskRunTime {
+				m.taskStats[index].Status = TaskStatusQueue
+				m.taskChan <- m.getTask(index)
+			}
+		case TaskStatusFinish:
+		case TaskStatusErr:
+			m.taskStats[index].Status = TaskStatusQueue
+			m.taskChan <- m.getTask(index)
+		default:
+			panic("Task status error")
+		}
+	}
+
+	if finished {
+		if m.taskPhase == MapPhase {
+			m.initReduceTask()
+		} else {
+			m.done = true
+		}
+	}
+}
+
+func (m *Master) getTask(taskId int) Task {
+
+	return Task{}
+}
+
+func (m *Master) initReduceTask() {
 
 }
 
@@ -75,12 +183,13 @@ func (m *Master) server() {
 // if the entire job has finished.
 //
 func (m *Master) Done() bool {
-	ret := false
-	//ret := true
+	//ret := false
 
 	// Your code here.
+	m.mx.Lock()
+	defer m.mx.Unlock()
 
-	return ret
+	return m.done
 }
 
 //
@@ -100,6 +209,9 @@ func MakeMaster(files []string, nReduce int) *Master {
 	} else {
 		m.taskChan = make(chan Task, len(files))
 	}
+
+	m.initMapTask()
+	go m.tickTimer()
 
 	// For test only
 	task := Task{}
