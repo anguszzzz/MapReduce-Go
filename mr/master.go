@@ -101,6 +101,7 @@ func (m *Master) regTask(args *TaskArgs, task *Task) {
 func (m *Master) initMapTask() {
 	m.taskPhase = MapPhase
 	m.taskStats = make([]TaskStatus, len(m.files))
+	fmt.Println("Tasks status are", len(m.taskStats))
 }
 
 // Timer to control the assign task interval
@@ -121,22 +122,29 @@ func (m *Master) schedule() {
 	}
 
 	finished := true
+	//fmt.Println("Tasks status are", m.taskStats)
 	for index, t := range m.taskStats {
+		//fmt.Println("Begin to switch")
 		switch t.Status {
 		case TaskStatusReady:
 			finished = false
+			//fmt.Println("Finished changes to false")
 			m.taskChan <- m.getTask(index)
 			m.taskStats[index].Status = TaskStatusQueue
 		case TaskStatusQueue:
+			//fmt.Println("Finished changes to queue")
 			finished = false
 		case TaskStatusRunning:
+			//fmt.Println("Task status changed wrong")
 			finished = false
 			if time.Now().Sub(t.StartTime) > MaxTaskRunTime {
 				m.taskStats[index].Status = TaskStatusQueue
 				m.taskChan <- m.getTask(index)
 			}
 		case TaskStatusFinish:
+			//fmt.Println("Task status changed wrong")
 		case TaskStatusErr:
+			//fmt.Println("Task status changed wrong")
 			m.taskStats[index].Status = TaskStatusQueue
 			m.taskChan <- m.getTask(index)
 		default:
@@ -146,8 +154,10 @@ func (m *Master) schedule() {
 
 	if finished {
 		if m.taskPhase == MapPhase {
+			//fmt.Println("Why")
 			m.initReduceTask()
 		} else {
+			//fmt.Println("Why")
 			m.done = true
 		}
 	}
@@ -155,11 +165,25 @@ func (m *Master) schedule() {
 
 func (m *Master) getTask(taskId int) Task {
 
-	return Task{}
+	task := Task{
+		Filename:  "",
+		NumReduce: m.nReduce,
+		NumMap:    len(m.files),
+		Id:        taskId,
+		Phase:     m.taskPhase,
+		Alive:     true,
+	}
+
+	if task.Phase == MapPhase {
+		task.Filename = m.files[taskId]
+	}
+
+	return task
 }
 
 func (m *Master) initReduceTask() {
-
+	m.taskPhase = ReducePhase
+	m.taskStats = make([]TaskStatus, m.nReduce)
 }
 
 //
@@ -188,6 +212,7 @@ func (m *Master) Done() bool {
 	// Your code here.
 	m.mx.Lock()
 	defer m.mx.Unlock()
+	//fmt.Println("Master status is ", m.done)
 
 	return m.done
 }
@@ -201,7 +226,8 @@ func MakeMaster(files []string, nReduce int) *Master {
 	m := Master{}
 
 	// Your code here.
-
+	m.files = files
+	m.nReduce = nReduce
 	m.mx = sync.Mutex{}
 
 	if nReduce > len(files) {
@@ -214,9 +240,10 @@ func MakeMaster(files []string, nReduce int) *Master {
 	go m.tickTimer()
 
 	// For test only
-	task := Task{}
-	m.taskChan <- task
+	//task := Task{}
+	//m.taskChan <- task
 
+	fmt.Println("Initialize master success")
 	m.server()
 	return &m
 }
