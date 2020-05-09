@@ -86,7 +86,7 @@ func (wk *worker) taskReq() Task {
 }
 
 func (wk *worker) taskDo(t Task) {
-	fmt.Println("Debug purpose")
+	fmt.Println("Worker is doing the task Debug purpose")
 }
 
 //
