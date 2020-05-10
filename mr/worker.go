@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 )
 import "log"
 import "net/rpc"
@@ -146,12 +147,49 @@ func (wk *worker) doMapTask(t Task) {
 }
 
 func (wk *worker) doReduceTask(t Task) {
+	maps := make(map[string][]string)
 
+	for idx := 0; idx < t.NumMap; idx++ {
+		fileName := reduceName(idx, t.Id)
+		file, err := os.Open(fileName)
+		if err != nil {
+			wk.feedback(t, false, err)
+			return
+		}
+
+		dec := json.NewDecoder(file)
+		for {
+			var kv KeyValue
+			if err := dec.Decode(&kv); err != nil {
+				wk.feedback(t, false, err)
+				return
+			}
+
+			if _, ok := maps[kv.Key]; !ok {
+				maps[kv.Key] = make([]string, 0, 100)
+			}
+			maps[kv.Key] = append(maps[kv.Key], kv.Value)
+		}
+	}
+
+	res := make([]string, 0, 100)
+	for k, v := range maps {
+		res = append(res, fmt.Sprintf("%v %v\n", k, wk.reducef(k, v)))
+	}
+
+	if err := ioutil.WriteFile(mergeName(t.Id), []byte(strings.Join(res, "")), 0600); err != nil {
+		wk.feedback(t, false, err)
+	}
+
+	wk.feedback(t, true, nil)
 }
 
 // Send feedback to the master, to tell the task is completed
 // encounter error or something else
 func (wk *worker) feedback(t Task, success bool, err error) {
+	if err != nil {
+		log.Println("%v", err)
+	}
 
 }
 
