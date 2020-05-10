@@ -186,6 +186,10 @@ func (m *Master) initReduceTask() {
 	m.taskStats = make([]TaskStatus, m.nReduce)
 }
 
+func (m *Master) FeedbackTask() {
+
+}
+
 //
 // start a thread that listens for RPCs from worker.go
 //

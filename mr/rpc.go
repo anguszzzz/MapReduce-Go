@@ -52,6 +52,16 @@ type Task struct {
 	Alive     bool
 }
 
+type FeedbackTaskArgs struct {
+	Done     bool
+	Id       int
+	Phase    TaskPhase
+	WorkerId int
+}
+
+type FeedbackTaskReply struct {
+}
+
 const (
 	MapPhase    TaskPhase = 0
 	ReducePhase TaskPhase = 1

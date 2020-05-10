@@ -191,6 +191,17 @@ func (wk *worker) feedback(t Task, success bool, err error) {
 		log.Println("%v", err)
 	}
 
+	args := FeedbackTaskArgs{}
+	args.Done = success
+	args.Id = t.Id
+	args.Phase = t.Phase
+	args.WorkerId = wk.id
+	reply := FeedbackTaskReply{}
+	ok := call("Master.FeedbackTask", &args, &reply)
+
+	if !ok {
+		fmt.Println("Send task completion failed")
+	}
 }
 
 //
