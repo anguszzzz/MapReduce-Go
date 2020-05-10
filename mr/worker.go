@@ -1,6 +1,11 @@
 package mr
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+)
 import "log"
 import "net/rpc"
 import "hash/fnv"
@@ -87,6 +92,67 @@ func (wk *worker) taskReq() Task {
 
 func (wk *worker) taskDo(t Task) {
 	fmt.Println("Worker is doing the task Debug purpose")
+
+	switch t.Phase {
+	case MapPhase:
+		wk.doMapTask(t)
+	case ReducePhase:
+		wk.doReduceTask(t)
+	default:
+		panic("Worker is doing wrong tasks")
+	}
+
+}
+
+// Do Map Task and using encoding function to encode the key-value pairs
+func (wk *worker) doMapTask(t Task) {
+	contents, err := ioutil.ReadFile(t.Filename)
+	if err != nil {
+		wk.feedback(t, false, err)
+		return
+	}
+
+	kvs := wk.mapf(t.Filename, string(contents))
+	reduces := make([][]KeyValue, t.NumReduce)
+
+	for _, kv := range kvs {
+		idx := ihash(kv.Key) % t.NumReduce
+		reduces[idx] = append(reduces[idx], kv)
+	}
+
+	for idx, l := range reduces {
+		fileName := reduceName(t.Id, idx)
+		f, err := os.Create(fileName)
+		if err != nil {
+			wk.feedback(t, false, err)
+			return
+		}
+
+		enc := json.NewEncoder(f)
+		for _, kv := range l {
+			if err := enc.Encode(&kv); err != nil {
+				wk.feedback(t, false, err)
+				return
+			}
+		}
+
+		if err := f.Close(); err != nil {
+			wk.feedback(t, false, err)
+			return
+		}
+	}
+
+	wk.feedback(t, true, nil)
+}
+
+func (wk *worker) doReduceTask(t Task) {
+
+}
+
+// Send feedback to the master, to tell the task is completed
+// encounter error or something else
+func (wk *worker) feedback(t Task, success bool, err error) {
+
 }
 
 //

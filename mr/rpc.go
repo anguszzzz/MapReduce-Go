@@ -6,7 +6,10 @@ package mr
 // remember to capitalize all names.
 //
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 import "strconv"
 
 //
@@ -22,6 +25,7 @@ type ExampleReply struct {
 	Y int
 }
 
+// Add your RPC definitions here.
 type RegisterArgs struct {
 }
 
@@ -53,7 +57,13 @@ const (
 	ReducePhase TaskPhase = 1
 )
 
-// Add your RPC definitions here.
+func reduceName(mapIdx, reduceIdx int) string {
+	return fmt.Sprintf("mr-%d-%d", mapIdx, reduceIdx)
+}
+
+func mergeName(reduceIdx int) string {
+	return fmt.Sprintf("mr-out-%d", reduceIdx)
+}
 
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the master.
