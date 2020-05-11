@@ -66,7 +66,7 @@ func (m *Master) RegWorker(args *RegisterArgs, reply *RegisterReply) error {
 	defer m.mx.Unlock()
 	m.workerId += 1
 	reply.WorkerId = m.workerId
-	fmt.Println("RPC is passing")
+	//fmt.Println("RPC is passing")
 	return nil
 }
 
@@ -75,7 +75,7 @@ func (m *Master) AssignTask(args *TaskArgs, reply *TaskReply) error {
 	task := <-m.taskChan
 	reply.T = task
 
-	fmt.Println("Master begin to assign task")
+	//fmt.Println("Master begin to assign task")
 	if task.Alive {
 		m.regTask(args, &task)
 	}
@@ -101,7 +101,7 @@ func (m *Master) regTask(args *TaskArgs, task *Task) {
 func (m *Master) initMapTask() {
 	m.taskPhase = MapPhase
 	m.taskStats = make([]TaskStatus, len(m.files))
-	fmt.Println("Tasks status are", len(m.taskStats))
+	//fmt.Println("Tasks status are", len(m.taskStats))
 }
 
 // Timer to control the assign task interval
@@ -154,7 +154,7 @@ func (m *Master) schedule() {
 
 	if finished {
 		if m.taskPhase == MapPhase {
-			//fmt.Println("Why")
+			//fmt.Println("Complete Map Phase in Master node")
 			m.initReduceTask()
 		} else {
 			//fmt.Println("Why")
@@ -186,8 +186,22 @@ func (m *Master) initReduceTask() {
 	m.taskStats = make([]TaskStatus, m.nReduce)
 }
 
-func (m *Master) FeedbackTask() {
+func (m *Master) FeedbackTask(args *FeedbackTaskArgs, reply *FeedbackTaskReply) error {
+	m.mx.Lock()
+	defer m.mx.Unlock()
 
+	if m.taskPhase != args.Phase || m.taskStats[args.Id].WorkerId != args.WorkerId {
+		return nil
+	}
+
+	if args.Done {
+		m.taskStats[args.Id].Status = TaskStatusFinish
+	} else {
+		m.taskStats[args.Id].Status = TaskStatusErr
+	}
+
+	go m.schedule()
+	return nil
 }
 
 //
@@ -219,6 +233,7 @@ func (m *Master) Done() bool {
 	//fmt.Println("Master status is ", m.done)
 
 	return m.done
+	//return true
 }
 
 //

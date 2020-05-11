@@ -62,14 +62,14 @@ func (wk *worker) register() {
 	}
 
 	wk.id = regReply.WorkerId
-	fmt.Println("Registeration Success, id is", wk.id)
+	//fmt.Println("Registeration Success, id is", wk.id)
 }
 
 func (wk *worker) start() {
 	for {
 		t := wk.taskReq()
 		if !t.Alive {
-			fmt.Println("The task is not alive")
+			log.Printf("The task is not alive")
 			return
 		}
 		wk.taskDo(t)
@@ -84,21 +84,25 @@ func (wk *worker) taskReq() Task {
 
 	ok := call("Master.AssignTask", &taskArgs, &taskReply)
 	if !ok {
-		log.Fatal("Request Task failed")
+		log.Printf("Request Task failed")
+		os.Exit(1)
 	}
-	fmt.Println("Complete task request")
+	//fmt.Println("Complete task request")
 
 	return taskReply.T
 }
 
 func (wk *worker) taskDo(t Task) {
-	fmt.Println("Worker is doing the task Debug purpose")
+	//fmt.Println("Worker is doing the task Debug purpose")
 
 	switch t.Phase {
 	case MapPhase:
+		//fmt.Println("Begin Map Phase")
 		wk.doMapTask(t)
 	case ReducePhase:
+		//fmt.Println("Begin to do reduce Phase")
 		wk.doReduceTask(t)
+
 	default:
 		panic("Worker is doing wrong tasks")
 	}
@@ -109,6 +113,7 @@ func (wk *worker) taskDo(t Task) {
 func (wk *worker) doMapTask(t Task) {
 	contents, err := ioutil.ReadFile(t.Filename)
 	if err != nil {
+		//fmt.Println("Error in open files")
 		wk.feedback(t, false, err)
 		return
 	}
@@ -153,6 +158,7 @@ func (wk *worker) doReduceTask(t Task) {
 		fileName := reduceName(idx, t.Id)
 		file, err := os.Open(fileName)
 		if err != nil {
+			//fmt.Println("Error opening files")
 			wk.feedback(t, false, err)
 			return
 		}
@@ -161,8 +167,8 @@ func (wk *worker) doReduceTask(t Task) {
 		for {
 			var kv KeyValue
 			if err := dec.Decode(&kv); err != nil {
-				wk.feedback(t, false, err)
-				return
+				//fmt.Println("Error decoding maps")
+				break
 			}
 
 			if _, ok := maps[kv.Key]; !ok {
@@ -172,15 +178,20 @@ func (wk *worker) doReduceTask(t Task) {
 		}
 	}
 
+	//fmt.Println("Complete reading and appending maps")
 	res := make([]string, 0, 100)
 	for k, v := range maps {
 		res = append(res, fmt.Sprintf("%v %v\n", k, wk.reducef(k, v)))
 	}
+	//fmt.Println("Complete iterating maps")
 
 	if err := ioutil.WriteFile(mergeName(t.Id), []byte(strings.Join(res, "")), 0600); err != nil {
+		//fmt.Println("Error in reduce function")
+
 		wk.feedback(t, false, err)
 	}
 
+	//fmt.Println("Complete One reduce function")
 	wk.feedback(t, true, nil)
 }
 
@@ -188,7 +199,7 @@ func (wk *worker) doReduceTask(t Task) {
 // encounter error or something else
 func (wk *worker) feedback(t Task, success bool, err error) {
 	if err != nil {
-		log.Println("%v", err)
+		//log.Println("Encounter error with", err)
 	}
 
 	args := FeedbackTaskArgs{}
@@ -235,7 +246,7 @@ func CallExample() {
 func call(rpcname string, args interface{}, reply interface{}) bool {
 	// c, err := rpc.DialHTTP("tcp", "127.0.0.1"+":1234")
 	sockname := masterSock()
-	fmt.Println(sockname)
+	//fmt.Println(sockname)
 	c, err := rpc.DialHTTP("unix", sockname)
 	if err != nil {
 		log.Fatal("dialing:", err)
