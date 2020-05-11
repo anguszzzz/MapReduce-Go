@@ -1,1 +1,1 @@
-"# MapReduce - Go implementation" 
+# MapReduce - Go implementation
